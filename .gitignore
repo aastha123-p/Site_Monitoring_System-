@@ -16,6 +16,8 @@ reports/*.json
 *.pt
 *.onnx
 runs/
+models/runs/
+!models/*.pt
 
 # IDE settings
 .vscode/
