@@ -1,0 +1,15 @@
+
+# Image reading, dimensions, and perceptual hashing
+Pillow>=10.0.0
+
+# YAML configuration files for YOLO
+PyYAML>=6.0
+
+# Data analysis and CSV/report handling
+pandas>=2.0.0
+
+# Numerical operations, if used by your scripts
+numpy>=1.24.0
+
+# YOLO object detection baseline training & evaluation
+ultralytics>=8.0.0

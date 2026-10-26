@@ -1,0 +1,22 @@
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Generated dataset
+data/processed/
+
+# Generated reports
+reports/*.csv
+reports/*.json
+
+# Model weights & training runs
+*.pt
+*.onnx
+runs/
+
+# IDE settings
+.vscode/
+.idea/
