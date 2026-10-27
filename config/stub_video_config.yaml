@@ -1,0 +1,41 @@
+camera_id: site_camera_01
+
+video:
+  input: videos/input/construction.mp4
+  output: videos/output/day2_annotated.mp4
+  display: true
+  max_frames: null
+
+detector:
+  mode: stub          # Use "yolo" for real YOLO + ByteTrack
+  model_path: models/best.pt
+  confidence: 0.25
+  tracker: bytetrack.yaml
+
+entry_exit_line:
+  start: [100, 350]
+  end: [900, 350]
+  positive_direction: entry
+
+zones:
+  - name: restricted_zone
+    type: restricted
+    max_people: 3
+    polygon:
+      - [500, 100]
+      - [900, 100]
+      - [950, 600]
+      - [450, 600]
+
+  - name: work_zone
+    type: monitored
+    max_people: 0
+    polygon:
+      - [50, 100]
+      - [450, 100]
+      - [450, 600]
+      - [50, 600]
+
+analytics:
+  track_timeout_seconds: 2.0
+  crossing_cooldown_seconds: 1.0

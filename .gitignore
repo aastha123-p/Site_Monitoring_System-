@@ -22,3 +22,8 @@ models/runs/
 # IDE settings
 .vscode/
 .idea/
+
+# Large media outputs
+videos/output/
+outputs/*.jpg
+

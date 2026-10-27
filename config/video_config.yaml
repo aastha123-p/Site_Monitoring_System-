@@ -1,0 +1,48 @@
+
+model_path: "models/best.pt"
+
+input_video: "videos/input/construction.mp4"
+output_dir: "videos/output"
+
+confidence_threshold: 0.35
+iou_threshold: 0.45
+image_size: 640
+device: "cpu"
+
+# Set to true to run the video with actual YOLO inference.
+# Do not use the stub detector for the Day 3 deliverable.
+use_tracking: true
+tracker_config: "bytetrack.yaml"
+
+# Must match the class names used during training.
+classes:
+  0: person
+  1: hardhat
+  2: no_hardhat
+  3: safety_vest
+  4: no_safety_vest
+  5: machinery
+  6: crane
+  7: excavator
+  8: truck
+  9: safety_cone
+
+# Coordinates are examples for a 1280x720 video.
+# Adjust them to match your camera view.
+entry_exit_line:
+  start: [640, 0]
+  end: [640, 720]
+
+zones: {}
+
+# Alert if more than 3 tracked people are inside the restricted zone.
+restricted_zone_person_limit: 3
+
+# Alert if the center of a person's box is closer than this
+# distance in pixels to the center of a machinery/equipment box.
+machinery_proximity_pixels: 150
+
+# Alert if a tracked person is detected without either PPE item.
+# These are detection-based alerts, not proof that both items
+# belong to the same individual.
+enable_ppe_alerts: true
