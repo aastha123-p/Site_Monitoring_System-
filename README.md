@@ -28,6 +28,11 @@ An end-to-end computer vision system designed for real-time safety compliance an
   - [3. Evaluation & Validation](#3-evaluation--validation)
   - [4. Running Inference (Images & Video)](#4-running-inference-images--video)
   - [5. Comparing Training Runs](#5-comparing-training-runs)
+- [Video Analytics & Safety Features](#-video-analytics--safety-features)
+  - [1. Dynamic Machinery Danger Halos](#1-dynamic-machinery-danger-halos)
+  - [2. Red Caution Barrier Strap / Tape Detection](#2-red-caution-barrier-strap--tape-detection)
+  - [3. Dynamic Cone Barricade Geofencing](#3-dynamic-cone-barricade-geofencing)
+  - [4. Site Access & Worker Flow Analytics](#4-site-access--worker-flow-analytics)
 - [Training Hyperparameters](#-training-hyperparameters)
 - [Annotation Guidelines](#-annotation-guidelines)
 - [Future Enhancements](#-future-enhancements)
@@ -50,6 +55,9 @@ The baseline model is built upon **YOLOv8 Nano (`yolov8n.pt`)**, intentionally o
 * **Multi-Target Detection**: Simultaneously detects 10 distinct site classes including personnel, PPE, and heavy equipment.
 * **Co-Occurrence PPE Verification**: Uses hierarchical detection to localize workers and detect their headgear and torso gear.
 * **Perceptual Leakage Prevention**: Custom splitting pipeline clusters near-duplicate frames via perceptual difference hashing (`dhash`, Hamming distance $\le 4$) to guarantee unbiased validation.
+* **Dynamic Machinery Hazard Halos**: Computes adaptive buffer perimeters around active machinery with alert banners and encroachment vectors.
+* **Red Caution Barrier Strap Monitoring**: Uses HSV color segmentation and Hough transform to detect caution straps and trigger crowd-density warnings.
+* **Real-time Video Analytics & Reporting**: Tracks entries/exits across virtual tripwires, calculates zone dwell times, and exports structured CSV/JSON audit logs.
 * **Robust Augmentation Strategy**: Trained with Mosaic, Mixup, Copy-Paste, scale variations, and rotation to handle severe site dust, varying angles, and partial occlusions.
 * **Lightweight & Edge-Ready**: Runs on CPU and can be exported directly to ONNX, TensorRT, or OpenVINO.
 
@@ -126,7 +134,8 @@ The dataset contains **803 site images** and **3,655 annotated object instances*
 site_monitoring_system/
 │
 ├── config/
-│   └── classes.yaml              # Master 10-class name definitions
+│   ├── classes.yaml              # Master 10-class name definitions
+│   └── video_config.yaml         # Video analytics, zones, proximity thresholds & tracker config
 │
 ├── data/
 │   ├── raw/                      # Raw uncleaned images and labels
@@ -162,12 +171,24 @@ site_monitoring_system/
 │   │   ├── evaluate_baseline.py
 │   │   ├── test_model.py
 │   │   └── train_baseline.py
-│   ├── src/                      # Shared utility module (hashing, YOLO I/O)
-│   │   └── dataset_utils.py
+│   ├── src/                      # Real-time video processing & analytics engine
+│   │   ├── analytics.py          # Line crossing, dwell time, hazard buffer math
+│   │   ├── dataset_utils.py      # Shared utility module (hashing, YOLO I/O)
+│   │   ├── detector.py           # YOLO model wrapper with config validation
+│   │   ├── stub_analytics.py     # Smoke test analytics engine
+│   │   ├── stub_detector.py      # Mock detector for testing video pipeline
+│   │   ├── stub_tracker.py       # Mock tracker for testing video pipeline
+│   │   ├── stub_video_pipeline.py# End-to-end mock video pipeline
+│   │   ├── tracker.py            # ByteTrack wrapper and unique track ID metrics
+│   │   └── video_pipeline.py     # Full video pipeline with HUD, straps & halos
 │   ├── compare_runs.py           # Epoch-by-epoch run comparison script
 │   ├── evaluate.py               # Evaluation entrypoint
 │   ├── test_model.py             # Inference entrypoint
 │   └── train.py                  # Training entrypoint
+│
+├── videos/
+│   ├── input/                    # Raw input test videos (CCTV, drone footage)
+│   └── output/                   # Annotated video clips, CSV event logs & JSON summaries
 │
 ├── Annotation_guideline.md       # Standardized labeling & annotation manual
 ├── README.md                     # Project documentation
@@ -251,7 +272,8 @@ python scripts/evaluate.py
 
 ### 4. Running Inference (Images & Video)
 
-Test the trained model on single images, directories, or video files:
+#### Image Inference
+Test the trained model on single images or directories:
 ```bash
 # Run inference on test split images
 python scripts/test_model.py
@@ -260,12 +282,72 @@ python scripts/test_model.py
 python scripts/model_training/test_model.py --weights models/construction_site_best.pt --source path/to/image.jpg --conf 0.35
 ```
 
+#### Real-Time Video Tracking & Hazard Analytics Pipeline
+Process full CCTV/drone video footage with ByteTrack object tracking, dynamic machinery safety halos, red barrier strap detection, and automated site analytics:
+
+```bash
+# Process video with GUI file picker dialog
+python scripts/src/video_pipeline.py
+
+# Or specify custom video directly via CLI
+python scripts/src/video_pipeline.py --video videos/input/camera_1.mp4
+
+# Run with custom configuration or frame limit (e.g., test 300 frames)
+python scripts/src/video_pipeline.py --config config/video_config.yaml --video videos/input/camera_2.mp4 --max-frames 300
+```
+
+#### Pipeline Stub / Baseline Smoke Tests
+For quick pipeline verification without downloading model weights or processing heavy video files:
+```bash
+# Run detector test
+python scripts/src/stub_detector.py
+
+# Run analytics engine unit tests
+python scripts/src/analytics.py
+
+# Run end-to-end stub pipeline
+python scripts/src/stub_video_pipeline.py
+```
+
 ### 5. Comparing Training Runs
 
 Inspect epoch-by-epoch performance differences across iterations:
 ```bash
 python scripts/compare_runs.py
 ```
+
+---
+
+## 🎥 Video Analytics & Safety Features
+
+The video processing pipeline ([`scripts/src/video_pipeline.py`](file:///c:/Users/Desktop/Site_Monitoring_System-/scripts/src/video_pipeline.py)) combines YOLOv8 detection with ByteTrack persistent ID tracking and an analytical rules engine:
+
+### 1. Dynamic Machinery Danger Halos
+* Automatically calculates a dynamic safety exclusion zone around heavy equipment (`machinery`, `excavator`, `crane`, `truck`).
+* The exclusion zone radius scales dynamically with machine dimensions: $R = \max(\text{width}, \text{height}) \times 0.65 + \text{buffer\_pixels}$.
+* When no personnel are encroaching, the halo is rendered as a translucent amber warning ring.
+* If a worker enters the buffer radius, the halo turns **bright red**, flashes a persistent on-screen alert banner, renders a direct distance vector line between the machine and worker, and logs an alert.
+
+### 2. Red Caution Barrier Strap / Tape Detection
+* Uses HSV color-space thresholding (wrapping both lower and upper red hues) combined with morphological closing and probabilistic Hough Line Transform (`cv2.HoughLinesP`).
+* Detects physical red barrier straps / safety tape strung across work zones.
+* Computes convex hulls from detected strap lines to dynamically define exclusion zones.
+* Triggers crowd-density alerts when worker count inside the barrier zone exceeds safety limits (default: $>4$ workers).
+
+### 3. Dynamic Cone Barricade Geofencing
+* Dynamically clusters detected `safety_cone` positions. When $\ge 3$ cones are identified, a convex hull polygon is computed to construct a real-time virtual perimeter fence.
+* Tracks worker entry/exit events and dwell times within cone-fenced areas.
+
+### 4. Site Access & Worker Flow Analytics
+* **Virtual Tripwire**: Directional line-crossing detection tracking personnel site entries and exits across designated gate boundaries.
+* **Peak Hour Flow**: Bins entry counts across video timestamps to pinpoint high-traffic work shifts.
+* **Zone Dwell Time**: Tracks timestamps when workers enter and leave restricted zones, computing average dwell durations.
+* **Structured Analytics Outputs**: Each processed video produces four structured CSV reports and an executive summary JSON in `videos/output/`:
+  * `detections.csv`: Frame-by-frame raw detections with bounding boxes, classes, and confidences.
+  * `events.csv`: Event log of tripwire line crossings and zone entries/exits with persistent track IDs.
+  * `alerts.csv`: Timestamped safety violations (machinery proximity breaches, red barrier crowd alerts, PPE violations).
+  * `occupancy_timeseries.csv`: Second-by-second site occupancy trends across zones.
+  * `day3_summary.json`: High-level executive statistics (total tracks, total alerts, entries/exits, class breakdown, processing FPS).
 
 ---
 
@@ -301,11 +383,12 @@ For complete rules on bounding box tightness, handling partial occlusions, neste
 
 ## 🔮 Future Enhancements
 
+- [x] **Temporal Tracking (ByteTrack)**: Persistent ID tracking to measure violation durations per individual worker.
+- [x] **Hazard Zone Geofencing & Machinery Halos**: Dynamic danger circles around active excavators and cranes triggering proximity alarms.
+- [x] **Red Barrier Tape Detection**: Automatic detection of caution straps and zone occupancy monitoring.
 - [ ] **RTSP Real-Time Stream Ingestion**: Direct integration with IP CCTV cameras using OpenCV / GStreamer.
-- [ ] **Hazard Zone Geofencing**: Polygon virtual fences around active excavators and cranes triggering proximity alarms when a worker enters.
 - [ ] **Automated Alerting**: SMS / Email / Webhook alerts triggered upon detected `no_hardhat` or `no_safety_vest` violations.
 - [ ] **Edge Optimization**: Exporting weights to TensorRT FP16 / INT8 for deployment on NVIDIA Jetson Orin.
-- [ ] **Temporal Tracking (DeepSORT / ByteTrack)**: Persistent ID tracking to measure violation durations per individual worker.
 
 ---
 
